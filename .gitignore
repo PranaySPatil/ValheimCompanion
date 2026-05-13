@@ -13,6 +13,9 @@
 # Per-machine path config for Valheim modding (user-specific)
 Environment.props
 
+# Local Claude Code settings
+.claude/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

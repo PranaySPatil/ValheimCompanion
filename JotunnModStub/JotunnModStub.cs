@@ -1,4 +1,4 @@
-﻿using BepInEx;
+using BepInEx;
 using Jotunn.Entities;
 using Jotunn.Managers;
 using Jotunn.Utils;
@@ -11,7 +11,7 @@ namespace JotunnModStub
     {
         public const string PluginGUID = "com.jotunn.jotunnmodstub";
         public const string PluginName = "JotunnModStub";
-        public const string PluginVersion = "0.0.1";
+        public const string PluginVersion = "0.1.0";
 
         public static CustomLocalization Localization = LocalizationManager.Instance.GetLocalization();
 
@@ -20,6 +20,8 @@ namespace JotunnModStub
             Jotunn.Logger.LogInfo("ModStub has landed");
 
             CommandManager.Instance.AddConsoleCommand(new HealCommand());
+
+            Companions.Bootstrap.Run(this);
         }
     }
 

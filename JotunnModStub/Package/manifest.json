@@ -1,7 +1,7 @@
 ﻿{
   "name": "JotunnModStub",
-  "description": "",
-  "version_number": "0.0.1",
+  "description": "Phase 1: Tamed Wolf Companion. Spawn via valhein_spawn wolf [name], command via valhein_order follow|stay|aggressive|defensive. Persistent across reload, configurable death mode (Downed / Permadeath / TagRecovery). Whistle and tame-promotion shipped behind config flags.",
+  "version_number": "0.1.0",
   "website_url": "",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2202",
