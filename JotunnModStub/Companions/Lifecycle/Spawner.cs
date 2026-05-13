@@ -126,13 +126,105 @@ namespace JotunnModStub.Companions.Lifecycle
                 ZdoId = zdo.m_uid,
                 CompanionType = ZdoKeys.CompanionTypeWolf,
                 OwnerSteamId = steamId,
-                Name = name
+                Name = name,
+                DisplayName = name,
+                CachedHpFraction = 1f,
+                AcquiredAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
             CompanionRegistry.Add(handle);
 
             AnnounceLoc("$valhein.spawn.welcome", name);
             Log.Info($"spawned wolf '{name}' for {steamId} via {acquisition}");
             return go;
+        }
+
+        // Rename a registered companion. Validates input, mutates the ZDO atomically,
+        // and notifies UI subscribers via CompanionRegistry.Updated. Returns false on
+        // a refusal (caller can surface a message to the player).
+        public static bool Rename(CompanionHandle handle, string newName, out string refusalReason)
+        {
+            refusalReason = null;
+            if (handle == null)
+            {
+                refusalReason = "no companion selected";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                refusalReason = "name cannot be empty";
+                return false;
+            }
+            newName = SanitizeName(newName);
+            if (newName.Length == 0)
+            {
+                refusalReason = "name has no printable characters";
+                return false;
+            }
+            if (newName.Length > 24)
+            {
+                newName = newName.Substring(0, 24);
+            }
+
+            if (ZDOMan.instance == null)
+            {
+                refusalReason = "world not ready";
+                return false;
+            }
+            var zdo = ZDOMan.instance.GetZDO(handle.ZdoId);
+            if (zdo == null)
+            {
+                refusalReason = "companion ZDO missing";
+                return false;
+            }
+
+            string oldName = zdo.GetString(ZdoKeys.Name, handle.Name ?? "");
+            if (string.Equals(oldName, newName, StringComparison.Ordinal))
+            {
+                return true; // no-op, but not an error
+            }
+
+            zdo.Set(ZdoKeys.Name, newName);
+            handle.Name = newName;
+            handle.DisplayName = newName;
+
+            // Audit
+            try
+            {
+                var bytes = zdo.GetByteArray(ZdoKeys.Cold);
+                var state = new CompanionState();
+                if (bytes != null && bytes.Length > 0)
+                {
+                    if (CompanionStateCodec.TryDecode(bytes, out var decoded) == CompanionStateCodec.DecodeResult.Ok)
+                    {
+                        state = decoded;
+                    }
+                }
+                AuditLog.Append(state, "Renamed", $"from={oldName} to={newName}");
+                zdo.Set(ZdoKeys.Cold, CompanionStateCodec.Encode(state));
+            }
+            catch (Exception ex)
+            {
+                Log.Warning($"rename audit append failed: {ex.Message}");
+            }
+
+            CompanionRegistry.NotifyUpdated(handle);
+            Log.Info($"renamed companion {handle.ZdoId}: '{oldName}' -> '{newName}'");
+            return true;
+        }
+
+        private static string SanitizeName(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            // Strip control characters and Valheim's color tag opener to keep nameplates clean.
+            var sb = new System.Text.StringBuilder(s.Length);
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (char.IsControl(c)) continue;
+                if (c == '<' || c == '>') continue;
+                sb.Append(c);
+            }
+            return sb.ToString().Trim();
         }
 
         private static void Announce(string text)

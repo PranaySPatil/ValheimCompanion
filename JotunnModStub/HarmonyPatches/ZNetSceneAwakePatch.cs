@@ -34,12 +34,18 @@ namespace JotunnModStub.HarmonyPatches
                         continue;
                     }
 
+                    string displayName = zdo.GetString(ZdoKeys.Name, "Wolf");
                     var handle = new CompanionHandle
                     {
                         ZdoId = kv.Key,
                         CompanionType = tag,
                         OwnerSteamId = zdo.GetString(ZdoKeys.OwnerSteamId, null),
-                        Name = zdo.GetString(ZdoKeys.Name, "Wolf")
+                        Name = displayName,
+                        DisplayName = displayName,
+                        CachedHpFraction = 1f,
+                        // Phase 1 ZDOs don't carry an acquired-at stamp. Phase 2's PhaseMigrations
+                        // (step 2) backfills a real value; for now legacy wolves sort to "earliest".
+                        AcquiredAtUnix = 0L
                     };
                     CompanionRegistry.Add(handle);
                     seeded++;
