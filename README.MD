@@ -1,58 +1,98 @@
-# JötunnModStub
+# Valhein
 
-A Valheim mod stub project using [Jötunn](https://github.com/Valheim-Modding/Jotunn) including build tools and a basic Unity project stub.
-There is no actual plugin content included, just a minimum plugin class. 
+A Valheim BepInEx + Jötunn mod focused on long-lived **companions** — creatures that follow you, fight alongside you, and persist across reloads.
 
-#  Setup Guide
+Built against Jötunn 2.20.3 (compile-time) / 2.29.0 (r2modman runtime). Single-player only at this point; the architecture is shaped for multiplayer in a later phase.
 
-Please see [Jötunn Docs](https://valheim-modding.github.io/Jotunn/guides/overview.html) detailed documentation and setup.
+## What's shipped
 
-### Post Build automations
+### Phase 1 — Tamed Wolf Companion *(current)*
 
-Included in this repo is a PowerShell script `publish.ps1`.
-The script is referenced in the project file as a post-build event.
-Depending on the chosen configuration in Visual Studio the script executes the following actions.
+A persistent, owner-bound combat wolf with an order state machine, configurable death modes, and three acquisition paths.
 
-### Building Debug
+- **Owner-bound by SteamID** — saved on the wolf's ZDO, immutable after spawn.
+- **Smooth follow** — drives vanilla `MonsterAI.m_follow`, so movement feels like a vanilla tamed wolf (no pathing fight).
+- **Two stars by default** — configurable via `[Wolf Companion] DefaultStarLevel`.
+- **Three death modes** — `Permadeath` (default), `Downed` (revivable for 5 min with a `TrophyGreydwarf`), `TagRecovery` (drops a memento on death).
+- **Leash-teleport** — wolf catches up if it falls >60 m behind out of combat for 5 s.
+- **Persistence** — ZDO hot fields + versioned cold-blob codec; survives save/reload and forward-compatible schema upgrades.
+- **Cap check** — `Combat.MaxPerPlayer = 1` by default.
 
-The compiled dll and a dll.mdb debug file are copied to `<ValheimDir>\BepInEx\plugins` (or the path set in MOD_DEPLOYPATH).
+Full design doc: [`docs/PHASE_1_WOLF_COMPANION_SPEC.md`](docs/PHASE_1_WOLF_COMPANION_SPEC.md).
 
-### Building Release
+## Commands
 
-A compressed file with the binaries is created in `<JotunnModStub>\Packages`ready for upload to ThunderStore.
-Dont forget to include your information in the manifest.json and to change the project's readme file.
+All commands work from the F5 console with no `devcommands` requirement.
 
-## Developing Assets with Unity
+| Command | What it does |
+| --- | --- |
+| `valhein_spawn wolf [name]` | Spawn a companion wolf bound to you. Name is optional — picks from a Norse pool if omitted. |
+| `valhein_order follow [name]` | Stick to the owner. Default order at spawn. |
+| `valhein_order stay [name]` | Hold position at current spot (wanders ±2 m). |
+| `valhein_order aggressive [name]` | Engage hostiles inside 2× engagement radius. |
+| `valhein_order defensive [name]` | Only engage when the owner or wolf is attacked. |
+| `valhein_dismiss [name]` | Permanently remove a companion and free the slot. |
+| `valhein_diag` | Print companion state to the console and copy to clipboard. |
+| `valhein_diag --perf` | Adds AI-tick and leash-tick perf stats. |
 
-New Assets can be created with Unity and imported into Valheim using the mod.
-A Unity project is included in this repository under `<JotunnModStub>\JotunnModUnity`.
+`[name]` is optional when you have only one wolf; required when you have several.
 
-### Unity Editor Setup
+Also retained from earlier: `heal2 [amount]` — convenience self-heal.
 
-1. [Download](https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.exe) UnityHub directly from Unity or install it with the Visual Studio Installer via `Individual Components` -> `Visual Studio Tools for Unity`
-2. You will need an Unity account to register your PC and get a free licence. Create the account, login with it in Unity Hub and get your licence via `Settings` -> `Licence Management`
-3. Install Unity Editor version 2022.3.17f
-4. Compile the project. This copies all assemblies into `<JotunnModStub>\JotunnModUnity\Assets\Assemblies`. Don't open Unity yet before this step, it will remove assembly references.
-5. **Warning:** These assembly files are copyrighted material and you can theoretically get into trouble when you distribute them in your github repository. To avoid that there is a .gitignore file in the Unity project folder. Keep that when you clone or copy this repository
-6. Open Unity Hub and add the JotunnModUnity project
-7. Open the project in Unity
-8. Install the `AssetBundle Browser` package in the Unity Editor via `Window`-> `Package Manager` for easy bundle creation
+## Configuration
 
-## Debugging
+After the first launch, BepInEx writes `<r2modman profile>\BepInEx\config\com.jotunn.jotunnmodstub.cfg`. Highlights:
 
-See the Wiki page [Debugging Plugins via IDE](https://github.com/Valheim-Modding/Wiki/wiki/Debugging-Plugins-via-IDE) for more information
+| Section / key | Default | Notes |
+| --- | --- | --- |
+| `Acquisition.AllowConsoleSpawn` | `true` | `valhein_spawn` works only when this is on. |
+| `Acquisition.AllowCraftableSummon` | `false` | Enables a craftable **Wolf Whistle** at the workbench. Recipe in `WhistleRecipe`. |
+| `Acquisition.AllowTamePromotion` | `false` | Hold E on a vanilla tamed wolf to convert it into a companion (preserves star count). |
+| `Wolf Companion.HealthBase` | `200` | |
+| `Wolf Companion.DamageBlunt` / `DamageSlash` | `25` / `25` | |
+| `Wolf Companion.EngagementRadius` | `25 m` | Doubled in Aggressive stance. |
+| `Wolf Companion.FollowDistance` | `8 m` | Clamped to `[5, 15]`. |
+| `Wolf Companion.LeashTeleportRadius` / `LeashTeleportSeconds` | `60 m` / `5 s` | Out-of-combat catch-up. |
+| `Wolf Companion.DefaultStarLevel` | `2` | Stars on spawn (0–3). Tame-promotion ignores this. |
+| `Death.Mode` | `Permadeath` | `Permadeath` / `Downed` / `TagRecovery`. |
+| `Death.ReviveWindowSeconds` | `300` | Used by `Downed` and `TagRecovery`. |
+| `Death.ReviveItem` / `ReviveItemCount` | `TrophyGreydwarf` / `1` | Channeled revive cost. |
+| `Combat.MaxPerPlayer` | `1` | Per-owner cap. |
 
-## Actions after a game update
+## Build & deploy
 
-When Valheim updates it is likely that parts of the assembly files change.
-If this is the case, the references to the assembly files must be renewed in Visual Studio and Unity.
+This machine launches Valheim via **r2modman**; the Steam install's `BepInEx\plugins` is ignored. Build outputs are copied to:
 
-### Prebuild actions
+```
+%APPDATA%\r2modmanPlus-local\Valheim\profiles\Default\BepInEx\plugins\JotunnModStub\
+```
 
-1. There is a file called DoPrebuild.props included in the solution. When you set its only value to true, Jötunn will automatically generate publicized assemblies for you. Otherwise you have to do this step manually.
+`Environment.props` (gitignored) bakes the per-machine paths. To build:
 
-### Unity actions
+- `Ctrl+Shift+B` in Visual Studio, or
+- `MSBuild.exe JotunnModStub.sln -t:Build` from a Developer PowerShell.
 
-1. Copy all `assembly_*.dll` from `<ValheimDir>\valheim_Data\Managed` into `<JotunnModStub>\JotunnModUnity\Assets\Assemblies`. <br />
-  **Do this directly in the filesystem - don't import the dlls in Unity**.
-2. Go to Unity Editor and press `Ctrl+R`. This reloads all files from the filesystem and "re-imports" the copied dlls into the project.
+To run: open **r2modman → Start modded**. Launching from Steam runs vanilla and the mod won't load.
+
+Mods do **not** hot-reload — quit Valheim fully between iterations.
+
+For background on the build pipeline, r2modman quirks, and the Jötunn API gap, see [`CLAUDE.md`](CLAUDE.md).
+
+## Logs
+
+`<r2modman profile>\BepInEx\LogOutput.log` is the source of truth. On a healthy boot you should see:
+
+```
+[Info: JotunnModStub] ModStub has landed
+[Info: Valhein.Companions] Harmony patches applied
+[Info: Valhein.Companions] wolf prefab registered (vanilla 'Wolf' cloned)
+[Info: Valhein.Companions] v0.1.0 — config hash … — features: console=on whistle=off promote=off death.mode=Permadeath
+```
+
+If the wolf-prefab line is missing, your `MOD_DEPLOYPATH` is wrong or the DLL never landed in r2modman's plugins folder.
+
+## Roadmap
+
+- **Phase 2** — roster UI, in-world interaction panel, named-companion HUD nameplates, appearance variation.
+- **Phase 3** — humanoid worker companions (tasks, station assignment).
+- **Phase 6** — multiplayer server-sync of `Acquisition.*`, `Wolf.*`, `Death.*`. Config entries are already marked `IsAdminOnly` so the seam is in place.
